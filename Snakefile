@@ -51,27 +51,7 @@ rule prep_io_data:
 
 
  #use "train" if wanting to use GPU on HPC
-#rule train:
-    #input:
-        #"{outdir}/prepped.npz"
-    #output:
-        #directory("{outdir}/trained_weights/"),
-        #directory("{outdir}/pretrained_weights/"),
-    #params:
-         ##getting the base path to put the training outputs in
-         ##I omit the last slash (hence '[:-1]' so the split works properly
-        #run_dir=lambda wildcards, output: os.path.split(output[0][:-1])[0],
-        #pt_epochs=config['pt_epochs'],
-        #ft_epochs=config['ft_epochs'],
-        #lamb=config['lamb'],
-    #group: 'train_predict_evaluate'
-    #shell:
-        #"""
-        #"python {code_dir}/train_model.py -o {params.run_dir} -i {input[0]} -p {params.pt_epochs} -f {params.ft_epochs} --lamb {params.lamb} --model rgcn -s 135"
-        #"""
-
- #use "train_model" if wanting to use CPU or local GPU
-rule train_model_local_or_cpu:
+rule train:
     input:
         "{outdir}/prepped.npz"
     output:
@@ -81,9 +61,29 @@ rule train_model_local_or_cpu:
          #getting the base path to put the training outputs in
          #I omit the last slash (hence '[:-1]' so the split works properly
         run_dir=lambda wildcards, output: os.path.split(output[0][:-1])[0],
-    run:
-        train_model(input[0], config['pt_epochs'], config['ft_epochs'], config['hidden_size'],
-                    params.run_dir, model_type='rgcn', lamb=config['lamb'])
+        pt_epochs=config['pt_epochs'],
+        ft_epochs=config['ft_epochs'],
+        lamb=config['lamb'],
+    group: 'train_predict_evaluate'
+    shell:
+        """
+        "python {code_dir}/train_model.py -o {params.run_dir} -i {input[0]} -p {params.pt_epochs} -f {params.ft_epochs} --lamb {params.lamb} --model rgcn -s 135"
+        """
+
+ #use "train_model" if wanting to use CPU or local GPU
+#rule train_model_local_or_cpu:
+    #input:
+        #"{outdir}/prepped.npz"
+    #output:
+        #directory("{outdir}/trained_weights/"),
+        #directory("{outdir}/pretrained_weights/"),
+    #params:
+         ##getting the base path to put the training outputs in
+         ##I omit the last slash (hence '[:-1]' so the split works properly
+        #run_dir=lambda wildcards, output: os.path.split(output[0][:-1])[0],
+    #run:
+        #train_model(input[0], config['pt_epochs'], config['ft_epochs'], config['hidden_size'],
+                    #params.run_dir, model_type='rgcn', lamb=config['lamb'])
 
 rule make_predictions:
     input:
