@@ -88,7 +88,7 @@ rule train_model_local_or_cpu:
 rule make_predictions:
     input:
         "{outdir}/trained_weights/",
-        "/caldera/projects/usgs/water/iidd/datasci/drb_ml_model/experiments/full/A/run0/Av1/A1/processed_data.npz"
+        "{outdir}/prepped.npz"
     output:
         "{outdir}/{partition}_preds.feather",
     group: 'train_predict_evaluate'
