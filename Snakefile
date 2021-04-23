@@ -1,8 +1,6 @@
 import os
 
 # this is needed for running on HPC if using GPU
-shell.prefix("module load analytics cuda10.1/toolkit/10.1.105 \n \
-              run_training -e /home/jsadler/.conda/envs/rgcn --no-node-list")
 
 # add scripts dir to path
 
@@ -64,10 +62,10 @@ rule train:
         pt_epochs=config['pt_epochs'],
         ft_epochs=config['ft_epochs'],
         lamb=config['lamb'],
-    group: 'train_predict_evaluate'
     shell:
         """
-        "python {code_dir}/train_model.py -o {params.run_dir} -i {input[0]} -p {params.pt_epochs} -f {params.ft_epochs} --lamb {params.lamb} --model rgcn -s 135"
+        module load analytics cuda10.1/toolkit/10.1.105 
+        run_training -e /home/jsadler/.conda/envs/rgcn --no-node-list "python {code_dir}/train_model.py -o {params.run_dir} -i {input[0]} -p {params.pt_epochs} -f {params.ft_epochs} --lamb {params.lamb} --model rgcn -s 135"
         """
 
  #use "train_model" if wanting to use CPU or local GPU
