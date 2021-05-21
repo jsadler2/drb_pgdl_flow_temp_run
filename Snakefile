@@ -1,11 +1,11 @@
 import os
+import pandas as pd
 
-# this is needed for running on HPC if using GPU
-
-# add scripts dir to path
 
 from river_dl.preproc_utils import prep_data
-from river_dl.postproc_utils import predict_from_weights, combined_metrics, plot_obs
+from river_dl.postproc_utils import plot_obs
+from river_dl.evaluate import combined_metrics
+from river_dl.predict import predict_from_io_data, predict_from_arbitrary_data
 from river_dl.train import train_model
 
 out_dir = config['out_dir']
@@ -13,15 +13,18 @@ code_dir = config['code_dir']
 
 rule all:
     input:
-        expand("{outdir}/{metric_type}_metrics.csv",
+        expand("{outdir}/{primary_variable}/{metric_type}_metrics.csv",
                 outdir=out_dir,
+                primary_variable=["flow", "temp"],
                 metric_type=['overall', 'month', 'reach', 'month_reach'],
         ),
-        expand( "{outdir}/{plt_variable}_{partition}.png",
+        expand("{outdir}/{primary_variable}/{plt_variable}_{partition}.png",
                 outdir=out_dir,
+                primary_variable=["flow", "temp"],
                 plt_variable=['temp', 'flow'],
                 partition=['trn', 'val'],
         ),
+        f"{out_dir}/rgcn_full_preds.feather",
         f"{out_dir}/archive.gz",
 
 rule prep_io_data:
@@ -31,7 +34,7 @@ rule prep_io_data:
          config['sntemp_file'],
          config['dist_matrix'],
     output:
-        "{outdir}/prepped.npz"
+        "{outdir}/{primary_variable}/prepped.npz"
     run:
         prep_data(input[0], input[1], input[2], input[3],
                   x_vars=config['x_vars'],
@@ -43,7 +46,7 @@ rule prep_io_data:
                   val_end_date=config['val_end_date'],
                   test_start_date=config['test_start_date'],
                   test_end_date=config['test_end_date'],
-                  primary_variable=config['primary_variable'],
+                  primary_variable=wildcards.primary_variable,
                   log_q=False, segs=None,
                   out_file=output[0])
 
@@ -51,10 +54,10 @@ rule prep_io_data:
  #use "train" if wanting to use GPU on HPC
 rule train:
     input:
-        "{outdir}/prepped.npz"
+        "{outdir}/{primary_variable}/prepped.npz"
     output:
-        directory("{outdir}/trained_weights/"),
-        directory("{outdir}/pretrained_weights/"),
+        directory("{outdir}/{primary_variable}/trained_weights/"),
+        directory("{outdir}/{primary_variable}/pretrained_weights/"),
     params:
          #getting the base path to put the training outputs in
          #I omit the last slash (hence '[:-1]' so the split works properly
@@ -85,17 +88,51 @@ rule train:
 
 rule make_predictions:
     input:
-        "{outdir}/trained_weights/",
-        "{outdir}/prepped.npz"
+        "{outdir}/{primary_variable}/trained_weights/",
+        "{outdir}/{primary_variable}/prepped.npz"
     output:
-        "{outdir}/{partition}_preds.feather",
+        "{outdir}/{primary_variable}/partition_{partition}_preds.feather",
     group: 'train_predict_evaluate'
     run:
         model_dir = input[0] + '/'
-        predict_from_weights(model_type='rgcn', model_weights_dir=model_dir,
+        predict_from_io_data(model_type='rgcn', model_weights_dir=model_dir,
                              hidden_size=config['hidden_size'], io_data=input[1],
                              partition=wildcards.partition, outfile=output[0],
                              logged_q=False)
+
+
+rule full_predictions:
+    input:
+        config['sntemp_file'],
+        "{outdir}/{primary_variable}/prepped.npz",
+        "{outdir}/{primary_variable}/trained_weights/",
+    output:
+        "{outdir}/{primary_variable}/full_preds.feather",
+    group: 'train_predict_evaluate'
+    run:
+        model_dir = input[2] + '/'
+        preds = predict_from_arbitrary_data(
+                input[0],
+                '1980-01-01',
+                '2020-07-31',
+                input[1],
+                model_dir,
+                'rgcn',
+                config['hidden_size'])
+        preds.reset_index().to_feather(output[0])
+
+rule combine_full_preds:
+    input:
+        "{outdir}/temp/full_preds.feather",
+        "{outdir}/flow/full_preds.feather",
+    output:
+        "{outdir}/rgcn_full_preds.feather",
+    run:
+        df_temp = pd.read_feather(input[0]).set_index(['date', 'seg_id_nat'])
+        df_flow = pd.read_feather(input[1]).set_index(['date', 'seg_id_nat'])
+        df_combined = pd.concat([df_temp['seg_tave_water'], df_flow['seg_outflow']], axis=1)
+        df_combined.reset_index().to_feather(output[0])
+
 
 
 def get_grp_arg(wildcards):
@@ -113,10 +150,10 @@ rule combine_metrics:
     input:
          config['obs_temp'],
          config['obs_flow'],
-         "{outdir}/trn_preds.feather",
-         "{outdir}/val_preds.feather"
+         "{outdir}/{primary_variable}/partition_trn_preds.feather",
+         "{outdir}/{primary_variable}/partition_val_preds.feather"
     output:
-         "{outdir}/{metric_type}_metrics.csv"
+         "{outdir}/{primary_variable}/{metric_type}_metrics.csv"
     group: 'train_predict_evaluate'
     params:
         grp_arg = get_grp_arg
@@ -125,15 +162,15 @@ rule combine_metrics:
                          obs_flow=input[1],
                          pred_trn=input[2],
                          pred_val=input[3],
-                         grp=params.grp_arg,
+                         group=params.grp_arg,
                          outfile=output[0])
 
 
 rule plot_prepped_data:
     input:
-        "{outdir}/prepped.npz",
+        "{outdir}/{primary_variable}/prepped.npz",
     output:
-        "{outdir}/{variable}_{partition}.png",
+        "{outdir}/{primary_variable}/{variable}_{partition}.png",
     run:
         plot_obs(input[0], wildcards.variable, output[0],
                  partition=wildcards.partition)

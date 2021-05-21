@@ -5,7 +5,7 @@ sntemp_file: "/home/jsadler/drb_data/uncal_sntemp_input_output"
 #catchment_attr: "/home/jsadler/drb_data/seg_attr_drb.feather"
 dist_matrix: "/home/jsadler/drb_data/distance_matrix.npz"
 
-out_dir: "/caldera/projects/usgs/water/iidd/datasci/drb_ml_model/alison_run/all_inputs_temp"
+out_dir: "/caldera/projects/usgs/water/iidd/datasci/drb_ml_model/alison_run"
 code_dir: "/home/jsadler/river-dl/river_dl"
 
 x_vars: ['seg_ccov', 'seg_elev', 'seg_length', 'seg_rain', 'seg_slope', 'seg_tave_air', 'seg_tave_gw', 'seg_tave_ss', 'seg_tave_upstream', 'seg_upstream_inflow', 'seg_width', 'seginc_gwflow', 'seginc_potet', 'seginc_sroff', 'seginc_ssflow', 'seginc_swrad']
