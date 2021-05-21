@@ -1,0 +1,19 @@
+# cluster_config.yml - cluster configuration
+__default__:
+    account: iidd 
+    partition: cpu
+    time: 04:00:00 # time limit for each job
+    nodes: 1
+    name: "{rule}"
+    output: snakejob-%j.out
+    error: err-%j.err
+    gpu: ''
+
+train:
+    account: iidd 
+    partition: gpu
+    time: 03:00:00 # time limit for each job
+    nodes: 1
+    output: snakejob-%j.out
+    error: err-%j.err
+    gpu: '--gres gpu:1'
